@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::{
     cache::CacheState, health::AuditReport, mcp::default_integrations, mcp::IntegrationConfig,
-    memory::MemoryVault, watcher::Incident,
+    memory::MemoryVault, notifications::Notification, swarm::SwarmEvent, watcher::Incident,
 };
 
 pub fn cache_path() -> anyhow::Result<PathBuf> {
@@ -127,6 +127,50 @@ pub fn save_integrations(
         std::fs::create_dir_all(parent)?;
     }
     let data = serde_json::to_string_pretty(integrations)?;
+    std::fs::write(path, data)?;
+    Ok(())
+}
+
+pub fn notifications_path() -> anyhow::Result<PathBuf> {
+    let base = dirs::config_dir().ok_or_else(|| anyhow::anyhow!("No config dir"))?;
+    Ok(base.join("nexus").join("notifications.json"))
+}
+
+pub fn load_notifications(path: &Path) -> anyhow::Result<Vec<Notification>> {
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let raw = std::fs::read_to_string(path)?;
+    Ok(serde_json::from_str(&raw).unwrap_or_default())
+}
+
+pub fn save_notifications(notifications: &[Notification], path: &Path) -> anyhow::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let data = serde_json::to_string_pretty(notifications)?;
+    std::fs::write(path, data)?;
+    Ok(())
+}
+
+pub fn swarm_events_path() -> anyhow::Result<PathBuf> {
+    let base = dirs::config_dir().ok_or_else(|| anyhow::anyhow!("No config dir"))?;
+    Ok(base.join("nexus").join("swarm-events.json"))
+}
+
+pub fn load_swarm_events(path: &Path) -> anyhow::Result<Vec<SwarmEvent>> {
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let raw = std::fs::read_to_string(path)?;
+    Ok(serde_json::from_str(&raw).unwrap_or_default())
+}
+
+pub fn save_swarm_events(events: &[SwarmEvent], path: &Path) -> anyhow::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let data = serde_json::to_string_pretty(events)?;
     std::fs::write(path, data)?;
     Ok(())
 }

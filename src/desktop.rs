@@ -7,11 +7,12 @@ use crate::{
     cache::CacheState,
     interface::{serve, SharedState, StatusSnapshot},
     mcp::IntegrationConfig,
+    notifications::Notification,
     storage::{
         audit_path, cache_path, incidents_path, integrations_path, kill_switch_path, load_audit,
         load_cache, load_incidents, load_integrations, load_kill_switch, load_memory,
-        memory_path, save_audit, save_cache, save_incidents, save_integrations,
-        save_kill_switch, save_memory,
+        load_notifications, memory_path, notifications_path, save_audit, save_cache,
+        save_incidents, save_integrations, save_kill_switch, save_memory,
     },
     watcher::analyze_log,
     Config,
@@ -34,6 +35,7 @@ pub struct DesktopState {
     pub audit_docs: bool,
     pub kill_switch: bool,
     pub integrations: Vec<IntegrationConfig>,
+    pub notifications: Vec<Notification>,
 }
 
 pub struct DesktopApp {
@@ -71,6 +73,7 @@ impl DesktopApp {
                 audit_docs: false,
                 kill_switch,
                 integrations: Vec::new(),
+                notifications: Vec::new(),
             })),
         }
     }
@@ -119,6 +122,9 @@ impl DesktopApp {
             }
             if let Ok(path) = integrations_path() {
                 state.integrations = load_integrations(&path).unwrap_or_default();
+            }
+            if let Ok(path) = notifications_path() {
+                state.notifications = load_notifications(&path).unwrap_or_default();
             }
             state.log.push("Status refreshed.".to_string());
         }
@@ -392,6 +398,12 @@ impl eframe::App for DesktopApp {
             }
             if ui.button("Save integrations").clicked() {
                 update_integrations = Some(state_snapshot.integrations.clone());
+            }
+
+            ui.separator();
+            ui.heading("Notifications");
+            for notification in state_snapshot.notifications.iter().rev().take(6) {
+                ui.label(format!("[{}] {}", notification.level, notification.message));
             }
 
             ui.separator();

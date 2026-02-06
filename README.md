@@ -39,6 +39,10 @@ cargo run -- diff-view --root .
 # Phase 6: self-healing scan
 cargo run -- heal scan --log-path dev.log
 cargo run -- heal list
+#
+# Notifications
+cargo run -- notify list
+cargo run -- notify clear
 
 # Phase 7: audit + benchmarks
 cargo run -- audit report

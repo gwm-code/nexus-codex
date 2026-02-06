@@ -8,8 +8,9 @@ use crate::{
     provider::ProviderKind,
     storage::{
         audit_path, cache_path, incidents_path, integrations_path, kill_switch_path, load_audit,
-        load_cache, load_incidents, load_integrations, load_kill_switch, save_integrations,
-        save_kill_switch,
+        load_cache, load_incidents, load_integrations, load_kill_switch, load_notifications,
+        load_swarm_events, notifications_path, save_integrations, save_kill_switch,
+        swarm_events_path,
     },
 };
 
@@ -84,6 +85,16 @@ pub fn serve(state: SharedState, addr: &str) -> anyhow::Result<()> {
                 let _ = current.warm();
                 let diff = cached.diff(&current);
                 let body = serde_json::to_string_pretty(&diff)?;
+                json_response(body)?
+            }
+            (&Method::Get, "/notifications") => {
+                let notifications = load_notifications(&notifications_path()?)?;
+                let body = serde_json::to_string_pretty(&notifications)?;
+                json_response(body)?
+            }
+            (&Method::Get, "/swarm-events") => {
+                let events = load_swarm_events(&swarm_events_path()?)?;
+                let body = serde_json::to_string_pretty(&events)?;
                 json_response(body)?
             }
             (&Method::Get, "/integrations") => {
@@ -239,6 +250,10 @@ fn dashboard_html() -> &'static str {
           <div id="audit"></div>
         </article>
         <article>
+          <h2>Notifications</h2>
+          <div id="notifications"></div>
+        </article>
+        <article>
           <h2>Incidents</h2>
           <div id="incidents"></div>
         </article>
@@ -269,6 +284,7 @@ fn dashboard_html() -> &'static str {
 fn app_js() -> &'static str {
     r#"const statusEl = document.getElementById("status");
 const auditEl = document.getElementById("audit");
+const notificationsEl = document.getElementById("notifications");
 const incidentsEl = document.getElementById("incidents");
 const diffEl = document.getElementById("diff");
 const killSwitch = document.getElementById("kill-switch");
@@ -330,13 +346,15 @@ function renderIntegrations(items) {
 
 async function refresh() {
   try {
-    const [status, audit, incidents, diff, kill, integrations] = await Promise.all([
+    const [status, audit, notifications, incidents, diff, kill, integrations, swarm] = await Promise.all([
       fetchJson("/status"),
       fetchJson("/audit"),
+      fetchJson("/notifications"),
       fetchJson("/incidents"),
       fetchJson("/diff"),
       fetchJson("/kill-switch"),
       fetchJson("/integrations"),
+      fetchJson("/swarm-events"),
     ]);
 
     statusEl.innerHTML = `
@@ -351,6 +369,12 @@ async function refresh() {
       <div>Security audit: ${audit.security_audit ? "✅" : "—"}</div>
       <div>Docs complete: ${audit.docs_complete ? "✅" : "—"}</div>
     `;
+
+    renderList(
+      notificationsEl,
+      notifications.map((item) => `[${item.level}] ${item.message}`),
+      "No notifications yet."
+    );
 
     renderList(
       incidentsEl,
@@ -368,6 +392,11 @@ async function refresh() {
     killSwitch.textContent = kill ? "Kill Switch Armed" : "Kill Switch";
 
     renderIntegrations(integrations);
+    renderList(
+      document.getElementById("swarm"),
+      swarm.map((item) => `[${item.event}] ${item.detail}`),
+      "Awaiting swarm activity."
+    );
   } catch (err) {
     statusEl.innerHTML = `<p class="muted">Failed to load status.</p>`;
   }

@@ -5,9 +5,10 @@ use nexus::{
     analyze_log, architect_plan, build_provider, cache::CacheState, memory::MemoryVault,
     serve_interface, shadow_run, shadow_run_with_options, Config, SharedState, StatusSnapshot,
     audit_path, cache_path, incidents_path, integrations_path, kill_switch_path, load_audit,
-    load_cache, load_incidents, load_integrations, load_kill_switch, memory_path, save_audit,
-    save_cache, save_incidents, save_integrations, save_kill_switch, run_daemon, set_detail,
-    set_enabled,
+    load_cache, load_incidents, load_integrations, load_kill_switch, load_notifications,
+    load_swarm_events, memory_path, notifications_path, plan_events, result_events, save_audit,
+    save_cache, save_incidents, save_integrations, save_kill_switch, save_notifications,
+    save_swarm_events, run_daemon, set_detail, set_enabled, swarm_events_path,
 };
 
 #[derive(Parser, Debug)]
@@ -118,6 +119,11 @@ enum Commands {
         #[command(subcommand)]
         command: McpCommand,
     },
+    /// View notification history
+    Notify {
+        #[command(subcommand)]
+        command: NotifyCommand,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -163,6 +169,12 @@ enum McpCommand {
     Enable { name: String },
     Disable { name: String },
     SetDetail { name: String, key: String, value: String },
+}
+
+#[derive(Subcommand, Debug)]
+enum NotifyCommand {
+    List,
+    Clear,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -278,6 +290,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Swarm { command } => match command {
             SwarmCommand::Plan { input } => {
                 let tasks = architect_plan(&input);
+                if let Ok(path) = swarm_events_path() {
+                    let mut events = load_swarm_events(&path).unwrap_or_default();
+                    events.extend(plan_events(&tasks));
+                    let _ = save_swarm_events(&events, &path);
+                }
                 println!("Planned {} task(s).", tasks.len());
                 for task in tasks {
                     println!("[{}] {}", task.id, task.description);
@@ -286,6 +303,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             SwarmCommand::Run { input } => {
                 let tasks = architect_plan(&input);
                 let results = nexus::run_workers(&tasks);
+                if let Ok(path) = swarm_events_path() {
+                    let mut events = load_swarm_events(&path).unwrap_or_default();
+                    events.extend(result_events(&results));
+                    let _ = save_swarm_events(&events, &path);
+                }
                 for result in results {
                     println!("[{}] {}", result.id, result.summary);
                 }
@@ -427,6 +449,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     println!("Unknown integration.");
                 }
+            }
+        },
+        Commands::Notify { command } => match command {
+            NotifyCommand::List => {
+                let path = notifications_path()?;
+                let notifications = load_notifications(&path)?;
+                for notification in notifications {
+                    println!(
+                        "[{}] {} - {}",
+                        notification.level, notification.source, notification.message
+                    );
+                }
+            }
+            NotifyCommand::Clear => {
+                let path = notifications_path()?;
+                save_notifications(&[], &path)?;
+                println!("Notifications cleared.");
             }
         },
     }

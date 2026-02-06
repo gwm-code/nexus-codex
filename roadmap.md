@@ -104,12 +104,12 @@
 - [x] Build headless daemon mode
 - [x] Create localhost web server (port 8888)
 - [x] Design PWA dashboard
-  - [ ] Swarm visualization (real-time agent activity)
+- [x] Swarm visualization (real-time agent activity)
   - [x] Visual diff reviewer
   - [x] "Big Red Button" kill switch
   - [x] Project settings and MCP config UI
 - [x] Rich CLI diff viewer
-- [ ] Notification system (desktop alerts for proposed fixes)
+- [x] Notification system (desktop alerts for proposed fixes)
 
 ### Deliverables
 - localhost:8888 shows live agent activity

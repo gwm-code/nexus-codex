@@ -1,6 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwarmEvent {
+    pub timestamp: u64,
+    pub event: String,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
     pub id: usize,
     pub description: String,
@@ -39,4 +46,35 @@ pub fn run_workers(tasks: &[Task]) -> Vec<TaskResult> {
         });
     }
     results
+}
+
+pub fn plan_events(tasks: &[Task]) -> Vec<SwarmEvent> {
+    let timestamp = now_ts();
+    tasks
+        .iter()
+        .map(|task| SwarmEvent {
+            timestamp,
+            event: "planned".to_string(),
+            detail: format!("[{}] {}", task.id, task.description),
+        })
+        .collect()
+}
+
+pub fn result_events(results: &[TaskResult]) -> Vec<SwarmEvent> {
+    let timestamp = now_ts();
+    results
+        .iter()
+        .map(|result| SwarmEvent {
+            timestamp,
+            event: "completed".to_string(),
+            detail: format!("[{}] {}", result.id, result.summary),
+        })
+        .collect()
+}
+
+fn now_ts() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
 }

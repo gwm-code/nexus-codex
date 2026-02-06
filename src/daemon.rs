@@ -3,9 +3,11 @@ use std::{path::Path, sync::mpsc, thread, time::Duration};
 use crate::{
     interface::{serve, SharedState, StatusSnapshot},
     memory::MemoryVault,
+    notifications::new_notification,
     storage::{
         cache_path, incidents_path, kill_switch_path, load_cache, load_incidents,
-        load_kill_switch, memory_path, save_incidents,
+        load_kill_switch, load_notifications, memory_path, notifications_path, save_incidents,
+        save_notifications,
     },
     watcher::{monitor_log, watch_filesystem},
     Config,
@@ -40,15 +42,28 @@ pub fn run_daemon(
                 if let Ok(Some(incidents)) = monitor_log(&path, &mut last_len) {
                     if let Ok(existing_path) = incidents_path() {
                         let mut existing = load_incidents(&existing_path).unwrap_or_default();
-                        for incident in incidents {
+                        let new_count = incidents.len();
+                        for incident in incidents.iter() {
                             let already = existing.iter().any(|item| {
                                 item.summary == incident.summary && item.kind == incident.kind
                             });
                             if !already {
-                                existing.push(incident);
+                                existing.push(incident.clone());
                             }
                         }
                         let _ = save_incidents(&existing, &existing_path);
+                        if let Ok(notifications_path) = notifications_path() {
+                            let mut notifications =
+                                load_notifications(&notifications_path).unwrap_or_default();
+                            for incident in existing.iter().rev().take(new_count) {
+                                notifications.push(new_notification(
+                                    "error",
+                                    &incident.source,
+                                    &incident.summary,
+                                ));
+                            }
+                            let _ = save_notifications(&notifications, &notifications_path);
+                        }
                     }
                 }
                 thread::sleep(Duration::from_millis(poll_ms));
@@ -66,6 +81,18 @@ pub fn run_daemon(
                     let mut existing = load_incidents(&existing_path).unwrap_or_default();
                     existing.push(incident);
                     let _ = save_incidents(&existing, &existing_path);
+                    if let Ok(notifications_path) = notifications_path() {
+                        let mut notifications =
+                            load_notifications(&notifications_path).unwrap_or_default();
+                        if let Some(last) = existing.last() {
+                            notifications.push(new_notification(
+                                "info",
+                                &last.source,
+                                &last.summary,
+                            ));
+                        }
+                        let _ = save_notifications(&notifications, &notifications_path);
+                    }
                 }
             }
         });
