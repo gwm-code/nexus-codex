@@ -81,6 +81,19 @@ The desktop UI surfaces live status, cache controls, memory vault management,
 and the interface server toggle for dashboard integrations. It also includes
 self-healing log scanning, a kill-switch toggle, incident review, and MCP integration toggles.
 
+## Linux desktop packaging (no terminal required)
+
+Build a self-contained AppImage for double-click execution:
+
+```bash
+./scripts/package-linux.sh
+```
+
+If `appimagetool` is available, the script produces `dist/NexusCodex.AppImage`.
+Otherwise, it emits `dist/nexus-desktop.AppDir.tar.gz`, which can be extracted and
+run by double-clicking `AppRun` in a file manager after creating one or using the
+desktop entry inside the AppDir.【F:scripts/package-linux.sh†L1-L35】
+
 Key design goals:
 - Safety-first command interception in dry-run mode.
 - Provider abstraction ready for Gemini and other backends.

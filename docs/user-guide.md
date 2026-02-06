@@ -26,6 +26,13 @@
 - Start the dashboard: `cargo run -- serve --addr 127.0.0.1:8888`
 - Run daemon mode: `cargo run -- daemon --addr 127.0.0.1:8888 --watch-root .`
 
+codex/complete-app-and-update-roadmap-tasks-x5y4yr
+## Desktop (AppImage)
+- Build a double-clickable AppImage: `./scripts/package-linux.sh`
+- Output is saved to `dist/NexusCodex.AppImage` when `appimagetool` is installed.
+
+=======
+main
 ## Vector Store
 - Add a document: `cargo run -- vector add doc-1 "Hello world"`
 - Query documents: `cargo run -- vector query "Hello"`
