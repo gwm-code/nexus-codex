@@ -1,8 +1,16 @@
 use std::path::{Path, PathBuf};
 
 use crate::{
-    cache::CacheState, health::AuditReport, mcp::default_integrations, mcp::IntegrationConfig,
-    memory::MemoryVault, notifications::Notification, swarm::SwarmEvent, watcher::Incident,
+    cache::CacheState,
+    context::{ContextPayload, Handshake},
+    health::AuditReport,
+    mcp::default_integrations,
+    mcp::IntegrationConfig,
+    memory::MemoryVault,
+    notifications::Notification,
+    swarm::SwarmEvent,
+    vector::VectorStoreSnapshot,
+    watcher::Incident,
 };
 
 pub fn cache_path() -> anyhow::Result<PathBuf> {
@@ -30,6 +38,76 @@ pub fn load_cache(path: &Path) -> anyhow::Result<CacheState> {
 pub fn memory_path() -> anyhow::Result<PathBuf> {
     let base = dirs::config_dir().ok_or_else(|| anyhow::anyhow!("No config dir"))?;
     Ok(base.join("nexus").join("memory.json"))
+}
+
+pub fn handshake_path() -> anyhow::Result<PathBuf> {
+    let base = dirs::config_dir().ok_or_else(|| anyhow::anyhow!("No config dir"))?;
+    Ok(base.join("nexus").join("handshake.json"))
+}
+
+pub fn load_handshake(path: &Path) -> anyhow::Result<Handshake> {
+    if !path.exists() {
+        return Ok(Handshake {
+            root: String::new(),
+            generated_at: 0,
+            file_count: 0,
+            total_bytes: 0,
+            digest: String::new(),
+        });
+    }
+    let raw = std::fs::read_to_string(path)?;
+    Ok(serde_json::from_str(&raw).unwrap_or(Handshake {
+        root: String::new(),
+        generated_at: 0,
+        file_count: 0,
+        total_bytes: 0,
+        digest: String::new(),
+    }))
+}
+
+pub fn save_handshake(handshake: &Handshake, path: &Path) -> anyhow::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let data = serde_json::to_string_pretty(handshake)?;
+    std::fs::write(path, data)?;
+    Ok(())
+}
+
+pub fn context_payload_path() -> anyhow::Result<PathBuf> {
+    let base = dirs::config_dir().ok_or_else(|| anyhow::anyhow!("No config dir"))?;
+    Ok(base.join("nexus").join("context-payload.json"))
+}
+
+pub fn save_context_payload(payload: &ContextPayload, path: &Path) -> anyhow::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let data = serde_json::to_string_pretty(payload)?;
+    std::fs::write(path, data)?;
+    Ok(())
+}
+
+pub fn vector_store_path() -> anyhow::Result<PathBuf> {
+    let base = dirs::config_dir().ok_or_else(|| anyhow::anyhow!("No config dir"))?;
+    Ok(base.join("nexus").join("vector-store.json"))
+}
+
+pub fn load_vector_store(path: &Path) -> anyhow::Result<VectorStoreSnapshot> {
+    if !path.exists() {
+        return Ok(VectorStoreSnapshot::default());
+    }
+    let raw = std::fs::read_to_string(path)?;
+    Ok(serde_json::from_str(&raw).unwrap_or_default())
+}
+
+pub fn save_vector_store(snapshot: &VectorStoreSnapshot, path: &Path) -> anyhow::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let data = serde_json::to_string_pretty(snapshot)?;
+    std::fs::write(path, data)?;
+    Ok(())
 }
 
 pub fn load_memory(path: &Path) -> anyhow::Result<MemoryVault> {
