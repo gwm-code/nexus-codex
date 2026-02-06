@@ -4,11 +4,16 @@ use std::io::Read;
 use nexus::{
     analyze_log, architect_plan, build_provider, cache::CacheState, memory::MemoryVault,
     serve_interface, shadow_run, shadow_run_with_options, Config, SharedState, StatusSnapshot,
-    audit_path, cache_path, incidents_path, integrations_path, kill_switch_path, load_audit,
-    load_cache, load_incidents, load_integrations, load_kill_switch, load_notifications,
-    load_swarm_events, memory_path, notifications_path, plan_events, result_events, save_audit,
-    save_cache, save_incidents, save_integrations, save_kill_switch, save_notifications,
-    save_swarm_events, run_daemon, set_detail, set_enabled, swarm_events_path,
+    audit_path, cache_path, context_payload_path, handshake_path, incidents_path,
+    integrations_path, kill_switch_path, load_audit, load_cache, load_incidents,
+    load_integrations, load_kill_switch, load_notifications,
+    load_swarm_events, load_vector_store, memory_path, notifications_path, plan_events,
+    result_events, save_audit, save_cache, save_context_payload, save_handshake,
+    save_incidents, save_integrations, save_kill_switch, save_notifications,
+    save_swarm_events, save_vector_store, run_daemon, set_detail, set_enabled,
+    swarm_events_path, vector_store_path,
+    context::build_handshake,
+    vector::{embed, ChromaStore, LocalVectorStore, VectorDocument, VectorStore},
 };
 
 #[derive(Parser, Debug)]
@@ -53,6 +58,18 @@ enum Commands {
         #[arg(long, default_value = ".")]
         root: String,
     },
+    /// Build a cache handshake snapshot
+    CacheHandshake {
+        #[arg(long, default_value = ".")]
+        root: String,
+    },
+    /// Build a cache payload from the last snapshot
+    CachePayload {
+        #[arg(long, default_value = ".")]
+        root: String,
+        #[arg(long, default_value_t = 12000)]
+        max_bytes: usize,
+    },
     /// Manage long-term memory entries
     Memory {
         #[command(subcommand)]
@@ -64,6 +81,17 @@ enum Commands {
         command: String,
         #[arg(long, default_value_t = false)]
         allow_exec: bool,
+        #[arg(long, default_value = ".")]
+        root: String,
+        #[arg(long, default_value = "ubuntu:22.04")]
+        image: String,
+        #[arg(long, default_value_t = false)]
+        hydrate: bool,
+    },
+    /// Run tests inside the sandbox layer
+    SandboxTest {
+        #[arg(long, default_value = "cargo test")]
+        command: String,
         #[arg(long, default_value = ".")]
         root: String,
         #[arg(long, default_value = "ubuntu:22.04")]
@@ -119,6 +147,11 @@ enum Commands {
         #[command(subcommand)]
         command: McpCommand,
     },
+    /// Manage the vector store
+    Vector {
+        #[command(subcommand)]
+        command: VectorCommand,
+    },
     /// View notification history
     Notify {
         #[command(subcommand)]
@@ -137,6 +170,7 @@ enum MemoryCommand {
 enum SwarmCommand {
     Plan { input: String },
     Run { input: String },
+    Merge { branch: String },
 }
 
 #[derive(Subcommand, Debug)]
@@ -148,6 +182,10 @@ enum HealCommand {
 #[derive(Subcommand, Debug)]
 enum AuditCommand {
     Report,
+    Scan {
+        #[arg(long, default_value = ".")]
+        root: String,
+    },
     Mark {
         #[arg(long)]
         performance: bool,
@@ -161,6 +199,10 @@ enum AuditCommand {
 #[derive(Subcommand, Debug)]
 enum BenchCommand {
     Cache { root: String },
+    Vector {
+        #[arg(long, default_value_t = 500)]
+        docs: usize,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -175,6 +217,16 @@ enum McpCommand {
 enum NotifyCommand {
     List,
     Clear,
+}
+
+#[derive(Subcommand, Debug)]
+enum VectorCommand {
+    Add { id: String, content: String },
+    Query {
+        query: String,
+        #[arg(long, default_value_t = 3)]
+        top_k: usize,
+    },
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -246,6 +298,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("- {}", item);
             }
         }
+        Commands::CacheHandshake { root } => {
+            let mut cache = CacheState::new(root.into());
+            cache.warm()?;
+            let handshake = build_handshake(&cache);
+            save_handshake(&handshake, &handshake_path()?)?;
+            println!(
+                "Handshake created: {} files, {} bytes.",
+                handshake.file_count, handshake.total_bytes
+            );
+        }
+        Commands::CachePayload { root, max_bytes } => {
+            let previous = load_cache(cache_path()?.as_path())?;
+            let mut current = CacheState::new(root.into());
+            current.warm()?;
+            let payload = previous.diff_payload(&current, max_bytes)?;
+            save_context_payload(&payload, &context_payload_path()?)?;
+            println!(
+                "Payload built: {} changed, {} removed, {} bytes.",
+                payload.changed.len(),
+                payload.removed.len(),
+                payload.total_bytes
+            );
+        }
         Commands::Memory { command } => {
             let path = memory_path()?;
             let mut vault = MemoryVault::load(path.clone())?;
@@ -256,11 +331,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("Memory updated.");
                 }
                 MemoryCommand::Get { key } => {
-                    println!("{}", vault.get(&key).cloned().unwrap_or_default());
+                    let entry = vault.get(&key).cloned().unwrap_or_else(|| {
+                        nexus::memory::MemoryEntry::new(String::new(), Vec::new())
+                    });
+                    println!("{}", entry.value);
                 }
                 MemoryCommand::List => {
-                    for (key, value) in vault.list() {
-                        println!("{} = {}", key, value);
+                    for (key, entry) in vault.list() {
+                        let tags = if entry.tags.is_empty() {
+                            "[]".to_string()
+                        } else {
+                            format!("[{}]", entry.tags.join(", "))
+                        };
+                        println!("{} = {} {}", key, entry.value, tags);
                     }
                 }
             }
@@ -287,6 +370,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Exit status: {}", status);
             }
         }
+        Commands::SandboxTest {
+            command,
+            root,
+            image,
+            hydrate,
+        } => {
+            let result = shadow_run_with_options(
+                &command,
+                nexus::sandbox::ShadowOptions {
+                    root: root.into(),
+                    image,
+                    allow_exec: true,
+                    hydrate,
+                },
+            )
+            .or_else(|_| shadow_run(&command, true))?;
+            println!("{}", result.output);
+            if let Some(status) = result.status {
+                println!("Exit status: {}", status);
+            }
+        }
         Commands::Swarm { command } => match command {
             SwarmCommand::Plan { input } => {
                 let tasks = architect_plan(&input);
@@ -301,8 +405,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             SwarmCommand::Run { input } => {
-                let tasks = architect_plan(&input);
-                let results = nexus::run_workers(&tasks);
+                let tasks = nexus::swarm::architect_with_dependencies(&input);
+                let results = nexus::swarm::run_parallel_workers(&tasks);
                 if let Ok(path) = swarm_events_path() {
                     let mut events = load_swarm_events(&path).unwrap_or_default();
                     events.extend(result_events(&results));
@@ -311,6 +415,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 for result in results {
                     println!("[{}] {}", result.id, result.summary);
                 }
+            }
+            SwarmCommand::Merge { branch } => {
+                let report = nexus::swarm::merge_branch(&branch)?;
+                println!("{}", report);
             }
         },
         Commands::Serve { addr } => {
@@ -367,6 +475,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let report = load_audit(&audit_path()?)?;
                 println!("{:#?}", report);
             }
+            AuditCommand::Scan { root } => {
+                let findings = nexus::health::run_security_audit(root.as_ref())?;
+                if findings.is_empty() {
+                    println!("Security audit clean.");
+                } else {
+                    println!("Security findings:");
+                    for finding in findings {
+                        println!("- {}: {}", finding.path, finding.issue);
+                    }
+                }
+            }
             AuditCommand::Mark {
                 performance,
                 security,
@@ -397,6 +516,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     cache.files.len(),
                     elapsed
                 );
+            }
+            BenchCommand::Vector { docs } => {
+                let start = std::time::Instant::now();
+                let mut store = LocalVectorStore::default();
+                let mut batch = Vec::new();
+                for idx in 0..docs {
+                    batch.push(VectorDocument {
+                        id: format!("doc-{}", idx),
+                        content: format!("Document {}", idx),
+                        embedding: embed(&format!("Document {}", idx)),
+                        metadata: Default::default(),
+                    });
+                }
+                store.upsert(batch)?;
+                let _ = store.query("Document", 5)?;
+                println!("Vector benchmark: {} docs in {:.2?}", docs, start.elapsed());
             }
         },
         Commands::KillSwitch { on, off } => {
@@ -468,6 +603,48 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Notifications cleared.");
             }
         },
+        Commands::Vector { command } => {
+            let vector_path = vector_store_path()?;
+            let mut local_store =
+                LocalVectorStore::from_snapshot(load_vector_store(vector_path.as_path())?);
+            match command {
+                VectorCommand::Add { id, content } => {
+                    let doc = VectorDocument {
+                        id: id.clone(),
+                        content: content.clone(),
+                        embedding: embed(&content),
+                        metadata: Default::default(),
+                    };
+                    local_store.upsert(vec![doc])?;
+                    save_vector_store(&local_store.snapshot(), vector_path.as_path())?;
+                    if let Some(url) = config.chroma_url.clone() {
+                        let collection =
+                            config.vector_collection.clone().unwrap_or_else(|| "nexus".to_string());
+                        let mut chroma = ChromaStore::new(url, collection);
+                        chroma.upsert(vec![VectorDocument {
+                            id,
+                            content: content.clone(),
+                            embedding: embed(&content),
+                            metadata: Default::default(),
+                        }])?;
+                    }
+                    println!("Vector document stored.");
+                }
+                VectorCommand::Query { query, top_k } => {
+                    let matches = if let Some(url) = config.chroma_url.clone() {
+                        let collection =
+                            config.vector_collection.clone().unwrap_or_else(|| "nexus".to_string());
+                        let chroma = ChromaStore::new(url, collection);
+                        chroma.query(&query, top_k)?
+                    } else {
+                        local_store.query(&query, top_k)?
+                    };
+                    for entry in matches {
+                        println!("{} ({:.2})", entry.id, entry.score);
+                    }
+                }
+            }
+        }
     }
 
     Ok(())
