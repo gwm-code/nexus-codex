@@ -18,12 +18,15 @@ cargo run -- tui
 # Phase 2: cache + memory
 cargo run -- cache-warm --root .
 cargo run -- cache-diff --root .
+cargo run -- cache-handshake --root .
+cargo run -- cache-payload --root . --max-bytes 12000
 cargo run -- memory set tone "Direct, concise"
 cargo run -- memory list
 
 # Phase 3: sandbox shadow run
 cargo run -- sandbox --command "ls -la"
 cargo run -- sandbox --command "ls -la" --allow-exec --root . --image ubuntu:22.04 --hydrate
+cargo run -- sandbox-test --command "cargo test" --root .
 
 # Phase 4: swarm orchestration scaffolding
 cargo run -- swarm plan "Scan repo\nSummarize risks\nDraft fixes"
@@ -46,14 +49,20 @@ cargo run -- notify clear
 
 # Phase 7: audit + benchmarks
 cargo run -- audit report
+cargo run -- audit scan --root .
 cargo run -- audit mark --performance --security --docs
 cargo run -- bench cache --root .
+cargo run -- bench vector --docs 500
 cargo run -- kill-switch --on
 
 # Phase 6: MCP integrations
 cargo run -- mcp list
 cargo run -- mcp enable GitHub
 cargo run -- mcp set-detail GitHub token $GITHUB_TOKEN
+
+# Vector store
+cargo run -- vector add doc-1 "Hello world"
+cargo run -- vector query "Hello"
 ```
 
 The dashboard is available at http://127.0.0.1:8888 with live status, diff review,
@@ -85,3 +94,10 @@ Key design goals:
 
 This foundation is designed to grow into the hardening, self-healing, and
 release phases described in `roadmap.md`.
+
+## Documentation
+- [Architecture](docs/architecture.md)
+- [User Guide](docs/user-guide.md)
+- [API Reference](docs/api.md)
+- [Beta Program](docs/beta-program.md)
+- [Release Pipeline](docs/release-pipeline.md)

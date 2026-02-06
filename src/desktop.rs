@@ -94,7 +94,7 @@ impl DesktopApp {
             state.memory_entries = memory
                 .entries
                 .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
+                .map(|(k, v)| (k.clone(), v.value.clone()))
                 .collect();
             if let Ok(path) = incidents_path() {
                 state.incidents = load_incidents(&path)

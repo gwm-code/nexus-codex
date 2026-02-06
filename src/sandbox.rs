@@ -111,7 +111,11 @@ fn stage_workspace(root: &Path) -> anyhow::Result<PathBuf> {
 }
 
 fn hydrate_workspace(staged: &Path, target: &Path) -> anyhow::Result<()> {
-    copy_dir_filtered(staged, target)?;
+    let backup = stage_workspace(target)?;
+    if let Err(err) = copy_dir_filtered(staged, target) {
+        let _ = copy_dir_filtered(&backup, target);
+        return Err(err);
+    }
     Ok(())
 }
 
