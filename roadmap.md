@@ -11,17 +11,17 @@
 **ETA:** 4-6 weeks
 
 ### Milestones
-- [ ] Initialize Rust project structure with Cargo
-- [ ] Implement stdin/stdout hooking mechanism
-- [ ] Build multi-provider API system:
-  - [ ] Provider trait abstraction
-  - [ ] OpenCode API integration
-  - [ ] OpenRouter API integration (multi-model proxy)
-  - [ ] Google Gemini API (OAuth + API key)
-  - [ ] Claude Code API (OAuth flow)
-- [ ] Configuration system (provider switching, auth management)
-- [ ] Create basic TUI using Ratatui (file tree, diff viewer skeleton)
-- [ ] Command interceptor (detect and queue shell commands)
+- [x] Initialize Rust project structure with Cargo
+- [x] Implement stdin/stdout hooking mechanism
+- [x] Build multi-provider API system:
+  - [x] Provider trait abstraction
+  - [x] OpenCode API integration
+  - [x] OpenRouter API integration (multi-model proxy)
+  - [x] Google Gemini API (OAuth + API key)
+  - [x] Claude Code API (OAuth flow)
+- [x] Configuration system (provider switching, auth management)
+- [x] Create basic TUI using Ratatui (file tree, diff viewer skeleton)
+- [x] Command interceptor (detect and queue shell commands)
 
 ### Deliverables
 - Working binary: `nexus` command in terminal
@@ -36,8 +36,8 @@
 **ETA:** 3-4 weeks | **Dependencies:** Phase 1
 
 ### Milestones
-- [ ] Implement file tree caching mechanism
-- [ ] Build diff detection system (track file changes)
+- [x] Implement file tree caching mechanism
+- [x] Build diff detection system (track file changes)
 - [ ] Create "warm handshake" protocol for initial context load
 - [ ] Optimize token usage (only send diffs after handshake)
 - [ ] Add Chroma vector store integration
@@ -56,13 +56,13 @@
 
 ### Milestones
 - [ ] Docker SDK integration (container spawning)
-- [ ] Build filesystem mirroring (host → container)
-- [ ] Implement "Shadow Run" execution loop
+- [x] Build filesystem mirroring (host → container)
+- [x] Implement "Shadow Run" execution loop
   - [ ] Intercept command
   - [ ] Run in container
   - [ ] Capture exit code and output
 - [ ] Create test runner integration
-- [ ] Build hydration system (container → host on success)
+- [x] Build hydration system (container → host on success)
 - [ ] Rollback mechanism on failure
 
 ### Deliverables
@@ -101,15 +101,15 @@
 **ETA:** 4-5 weeks | **Dependencies:** Phase 4
 
 ### Milestones
-- [ ] Build headless daemon mode
-- [ ] Create localhost web server (port 8888)
-- [ ] Design PWA dashboard
-  - [ ] Swarm visualization (real-time agent activity)
-  - [ ] Visual diff reviewer
-  - [ ] "Big Red Button" kill switch
-  - [ ] Project settings and MCP config UI
-- [ ] Rich CLI diff viewer
-- [ ] Notification system (desktop alerts for proposed fixes)
+- [x] Build headless daemon mode
+- [x] Create localhost web server (port 8888)
+- [x] Design PWA dashboard
+- [x] Swarm visualization (real-time agent activity)
+  - [x] Visual diff reviewer
+  - [x] "Big Red Button" kill switch
+  - [x] Project settings and MCP config UI
+- [x] Rich CLI diff viewer
+- [x] Notification system (desktop alerts for proposed fixes)
 
 ### Deliverables
 - localhost:8888 shows live agent activity
@@ -128,10 +128,10 @@
 - [x] External tool connectors (GitHub, Sentry, Slack)
 - [ ] Self-Healing Watcher
   - [x] File system watcher integration
-  - [ ] Dev server log monitoring
-  - [ ] Stack trace detection (regex + AI)
-  - [ ] Auto-investigate and propose fixes
-- [ ] MCP marketplace/config UI
+  - [x] Dev server log monitoring
+  - [x] Stack trace detection (regex + AI)
+  - [x] Auto-investigate and propose fixes
+- [x] MCP marketplace/config UI
 
 ### Deliverables
 - Connects to any MCP-compliant tool
